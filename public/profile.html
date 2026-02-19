@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="page-content">
+        <div class="container" style="padding-top:2rem;padding-bottom:3rem;">
+            <!-- Profile Header -->
+            <div class="glass-card-static profile-header" id="profileHeader">
+                <div class="avatar avatar-xl" id="profileAvatar">?</div>
+                <div class="profile-info">
+                    <h1 id="profileName">Loading...</h1>
+                    <div class="username" id="profileUsername">@loading</div>
+                    <div class="bio" id="profileBio"></div>
+                    <div class="profile-stats" id="profileStats">
+                        <div class="stat">
+                            <div class="stat-num" id="pTeach">0</div>
+                            <div class="stat-label">Teaching</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-num" id="pLearn">0</div>
+                            <div class="stat-label">Learning</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-num" id="pSwaps">0</div>
+                            <div class="stat-label">Swaps</div>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="openEditModal()" id="editBtn" style="display:none;">Edit
+                    Profile</button>
+            </div>
+
+            <!-- Skills Section -->
+            <div class="dashboard-section">
+                <div class="d-flex justify-between align-center mb-2">
+                    <h2>📚 Skills</h2>
+                </div>
+                <div class="tabs">
+                    <button class="tab active" onclick="filterProfileSkills('all', this)">All</button>
+                    <button class="tab" onclick="filterProfileSkills('teach', this)">Teaching</button>
+                    <button class="tab" onclick="filterProfileSkills('learn', this)">Learning</button>
+                </div>
+                <div class="grid grid-3" id="profileSkills">
+                    <div class="empty-state glass-card-static">
+                        <h3>No skills yet</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Edit Profile</h3>
+                <button class="modal-close" onclick="closeEditModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="editName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Bio</label>
+                        <textarea id="editBio" class="form-control" rows="3"
+                            placeholder="Tell us about yourself"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Location</label>
+                        <input type="text" id="editLocation" class="form-control" placeholder="City, Country">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        let currentUser = null;
+        let profileUser = null;
+        let allSkills = [];
+
+        async function loadProfile() {
+            currentUser = await getCurrentUser();
+            const params = new URLSearchParams(window.location.search);
+            const userId = params.get('id') || (currentUser ? currentUser.id : null);
+            if (!userId) { window.location.href = '/login.html'; return; }
+
+            try {
+                profileUser = await api.get(`/users/${userId}`);
+                document.getElementById('profileAvatar').textContent = getInitials(profileUser.full_name);
+                document.getElementById('profileName').textContent = profileUser.full_name;
+                document.getElementById('profileUsername').textContent = '@' + profileUser.username;
+                document.getElementById('profileBio').textContent = profileUser.bio || 'No bio yet';
+
+                allSkills = profileUser.skills || [];
+                const teach = allSkills.filter(s => s.type === 'teach');
+                const learn = allSkills.filter(s => s.type === 'learn');
+                document.getElementById('pTeach').textContent = teach.length;
+                document.getElementById('pLearn').textContent = learn.length;
+
+                if (currentUser && currentUser.id === profileUser.id) {
+                    document.getElementById('editBtn').style.display = 'inline-flex';
+                }
+
+                // Count swaps
+                try {
+                    const reqs = await api.get('/requests');
+                    document.getElementById('pSwaps').textContent = reqs.filter(r => r.status === 'accepted').length;
+                } catch { }
+
+                renderProfileSkills(allSkills);
+            } catch (err) {
+                showToast('Failed to load profile', 'error');
+            }
+        }
+
+        function renderProfileSkills(skills) {
+            const grid = document.getElementById('profileSkills');
+            if (skills.length === 0) {
+                grid.innerHTML = '<div class="empty-state glass-card-static" style="grid-column:1/-1"><h3>No skills</h3></div>';
+                return;
+            }
+            grid.innerHTML = skills.map(s => `
+                <div class="glass-card skill-card">
+                    <div class="skill-card-header">
+                        <h3>${s.name}</h3>
+                        <span class="badge badge-${s.type}">${s.type}</span>
+                    </div>
+                    <div class="skill-meta">
+                        <span class="badge badge-primary">${s.category}</span>
+                        <span class="badge badge-warning">${s.proficiency}</span>
+                    </div>
+                    ${s.description ? `<p class="skill-description">${s.description}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function filterProfileSkills(type, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            const filtered = type === 'all' ? allSkills : allSkills.filter(s => s.type === type);
+            renderProfileSkills(filtered);
+        }
+
+        function openEditModal() {
+            document.getElementById('editName').value = profileUser.full_name || '';
+            document.getElementById('editBio').value = profileUser.bio || '';
+            document.getElementById('editLocation').value = profileUser.location || '';
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+
+        async function saveProfile() {
+            const data = {
+                full_name: document.getElementById('editName').value.trim(),
+                bio: document.getElementById('editBio').value.trim(),
+                location: document.getElementById('editLocation').value.trim()
+            };
+            try {
+                await api.put(`/users/${currentUser.id}`, data);
+                showToast('Profile updated!', 'success');
+                closeEditModal();
+                loadProfile();
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        loadProfile();
+    </script>
+</body>
+
+</html>

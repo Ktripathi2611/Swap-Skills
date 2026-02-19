@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="page-content">
+        <div class="container-sm" style="padding-top:3rem;padding-bottom:3rem;">
+            <div class="page-header" style="text-align:center;margin-bottom:2rem;">
+                <h1>💳 Complete Payment</h1>
+                <p>Demo Mode — No real money is charged</p>
+            </div>
+
+            <!-- Payment Summary Card -->
+            <div class="glass-card-static payment-summary-card" id="paymentCard" style="margin-bottom:2rem;">
+                <div class="payment-info">
+                    <div class="payment-row">
+                        <span class="payment-label">Skill</span>
+                        <span class="payment-value" id="paySkillName">Loading...</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">Instructor</span>
+                        <span class="payment-value" id="payInstructor">Loading...</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">Category</span>
+                        <span class="payment-value" id="payCategory">—</span>
+                    </div>
+                    <hr style="border-color:var(--border-color);margin:1rem 0;">
+                    <div class="payment-row payment-total">
+                        <span class="payment-label">Amount</span>
+                        <span class="payment-value price-highlight" id="payAmount">₹0</span>
+                    </div>
+                </div>
+
+                <div class="demo-badge" style="margin-top:1.5rem;">
+                    <span class="badge badge-warning" style="font-size:0.85rem;padding:0.4rem 1rem;">
+                        🧪 Demo Mode — Payment is simulated
+                    </span>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="payment-actions" style="text-align:center;">
+                <button class="btn btn-primary btn-lg" onclick="processPayment()" id="payBtn" style="min-width:280px;">
+                    💰 Pay Now (Demo)
+                </button>
+                <p style="margin-top:1rem;color:var(--text-muted);font-size:0.85rem;">
+                    By clicking Pay, a session will be auto-created with the instructor.
+                </p>
+            </div>
+
+            <!-- Success State (hidden initially) -->
+            <div id="successState" style="display:none;text-align:center;">
+                <div class="glass-card-static" style="padding:3rem;">
+                    <div style="font-size:4rem;margin-bottom:1rem;">✅</div>
+                    <h2 style="margin-bottom:0.5rem;">Payment Successful!</h2>
+                    <p style="color:var(--text-secondary);margin-bottom:1.5rem;">Your paid session has been created. You
+                        can now chat with your instructor.</p>
+                    <div class="d-flex gap-1 justify-center flex-wrap">
+                        <a href="/sessions.html" class="btn btn-primary">📅 View Sessions</a>
+                        <a href="/dashboard.html" class="btn btn-secondary">🏠 Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        let paymentData = null;
+
+        async function init() {
+            const user = await checkAuth();
+            if (!user) return;
+
+            const params = new URLSearchParams(window.location.search);
+            const skillId = params.get('skillId');
+            const instructorId = params.get('instructorId');
+
+            if (!skillId || !instructorId) {
+                showToast('Missing payment parameters', 'error');
+                return;
+            }
+
+            // Load skill details
+            try {
+                const skills = await api.get(`/skills?user_id=${instructorId}`);
+                const skill = skills.find(s => s.id === parseInt(skillId));
+                if (!skill) return showToast('Skill not found', 'error');
+
+                document.getElementById('paySkillName').textContent = skill.name;
+                document.getElementById('payInstructor').textContent = skill.full_name;
+                document.getElementById('payCategory').textContent = skill.category;
+                document.getElementById('payAmount').textContent = `₹${parseFloat(skill.price_per_session).toFixed(2)}`;
+
+                paymentData = { skill_id: parseInt(skillId), instructor_id: parseInt(instructorId) };
+            } catch (err) {
+                showToast('Failed to load skill details', 'error');
+            }
+        }
+
+        async function processPayment() {
+            if (!paymentData) return;
+            const btn = document.getElementById('payBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner spinner-sm" style="border-top-color:white;"></div> Processing...';
+
+            try {
+                // Step 1: Create order
+                const order = await api.post('/payments/create-order', paymentData);
+
+                // Step 2: Simulate payment delay
+                await new Promise(r => setTimeout(r, 1500));
+
+                // Step 3: Verify (demo — always succeeds)
+                const result = await api.post('/payments/verify', { payment_id: order.payment_id });
+
+                // Show success
+                document.getElementById('paymentCard').style.display = 'none';
+                document.querySelector('.payment-actions').style.display = 'none';
+                document.querySelector('.page-header').style.display = 'none';
+                document.getElementById('successState').style.display = 'block';
+                showToast('Payment verified! Session created.', 'success');
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = '💰 Pay Now (Demo)';
+                showToast(err.message || 'Payment failed', 'error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

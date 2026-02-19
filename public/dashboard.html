@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="page-content">
+        <div class="container" style="padding-top:2rem;padding-bottom:3rem;">
+            <div class="page-header">
+                <h1 id="greeting">Welcome back!</h1>
+                <p>Here's your learning overview</p>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="dashboard-grid" id="statsGrid">
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">📚</div>
+                    <div class="stat-value" id="statSkills">0</div>
+                    <div class="stat-label">My Skills</div>
+                </div>
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">🔄</div>
+                    <div class="stat-value" id="statRequests">0</div>
+                    <div class="stat-label">Active Swaps</div>
+                </div>
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="statSessions">0</div>
+                    <div class="stat-label">Sessions</div>
+                </div>
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">💬</div>
+                    <div class="stat-value" id="statChats">0</div>
+                    <div class="stat-label">Conversations</div>
+                </div>
+                <!-- Paid module stats (hidden if feature disabled) -->
+                <div class="glass-card stat-card" id="statEarningsCard" style="display:none;">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-value" id="statEarnings">₹0</div>
+                    <div class="stat-label">Earnings</div>
+                </div>
+                <div class="glass-card stat-card" id="statPaidCard" style="display:none;">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-value" id="statPaidSessions">0</div>
+                    <div class="stat-label">Paid Sessions</div>
+                </div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="dashboard-section">
+                <h2>🎯 Recommended for You</h2>
+                <div class="recommendation-grid" id="recommendationsGrid">
+                    <div class="empty-state glass-card-static">
+                        <div class="empty-icon">🔍</div>
+                        <h3>No recommendations yet</h3>
+                        <p>Add skills you want to learn to get personalized matches</p>
+                        <a href="/skills.html" class="btn btn-primary btn-sm">Add Skills</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Affordable Skills (paid learning module) -->
+            <div class="dashboard-section" id="affordableSection" style="display:none;">
+                <h2>💎 Affordable Paid Skills</h2>
+                <div class="grid grid-3" id="affordableGrid">
+                    <span class="badge badge-primary">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Trending Skills -->
+            <div class="dashboard-section">
+                <h2>🔥 Trending Skills</h2>
+                <div class="d-flex flex-wrap gap-1" id="trendingSkills">
+                    <span class="badge badge-primary">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Upcoming Sessions -->
+            <div class="dashboard-section">
+                <h2>📅 Upcoming Sessions</h2>
+                <div id="upcomingSessions">
+                    <div class="empty-state glass-card-static">
+                        <div class="empty-icon">📅</div>
+                        <h3>No upcoming sessions</h3>
+                        <p>Schedule a session with your swap partners</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        let currentUser = null;
+        let featureFlags = {};
+
+        async function loadDashboard() {
+            try { featureFlags = await api.get('/features'); } catch (e) { featureFlags = {}; }
+
+            currentUser = await checkAuth();
+            if (!currentUser) return;
+
+            document.getElementById('greeting').textContent = `Welcome back, ${currentUser.full_name}!`;
+
+            // Load stats
+            try {
+                const [skills, requests, sessions] = await Promise.all([
+                    api.get(`/skills?user_id=${currentUser.id}`),
+                    api.get('/requests'),
+                    api.get('/sessions')
+                ]);
+                document.getElementById('statSkills').textContent = skills.length;
+                const accepted = requests.filter(r => r.status === 'accepted');
+                document.getElementById('statRequests').textContent = accepted.length;
+                document.getElementById('statSessions').textContent = sessions.filter(s => s.status === 'scheduled').length;
+                document.getElementById('statChats').textContent = accepted.length;
+
+                // Upcoming sessions (both swap + paid)
+                const upcoming = sessions.filter(s => s.status === 'scheduled' && new Date(s.scheduled_at) > new Date());
+                const sessionsDiv = document.getElementById('upcomingSessions');
+                if (upcoming.length > 0) {
+                    sessionsDiv.innerHTML = upcoming.slice(0, 3).map(s => `
+                        <div class="glass-card session-card mb-1">
+                            <div class="d-flex justify-between align-center">
+                                <h3>${s.title}</h3>
+                                <span class="badge badge-${s.session_type === 'paid' ? 'paid' : 'primary'}">${s.session_type || 'swap'}</span>
+                            </div>
+                            <div class="session-details">
+                                <div class="session-detail">📅 ${formatDateTime(s.scheduled_at)}</div>
+                                <div class="session-detail">⏱ ${s.duration_minutes} min</div>
+                                <div class="session-detail">👤 ${s.host_id === currentUser.id ? s.participant_name : s.host_name}</div>
+                                ${s.meeting_link ? `<a href="${s.meeting_link}" target="_blank" class="btn btn-sm btn-success">📹 Join Meeting</a>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) { console.error(err); }
+
+            // Load paid module stats
+            if (featureFlags.PAID_LEARNING) {
+                document.getElementById('statEarningsCard').style.display = '';
+                document.getElementById('statPaidCard').style.display = '';
+                try {
+                    const data = await api.get('/payments/earnings');
+                    document.getElementById('statEarnings').textContent = `₹${parseFloat(data.summary.total_earnings).toFixed(0)}`;
+                    document.getElementById('statPaidSessions').textContent = data.summary.total_paid_sessions;
+                } catch (err) { console.error(err); }
+            }
+
+            // Load recommendations
+            try {
+                const rec = await api.get('/recommendations');
+                const grid = document.getElementById('recommendationsGrid');
+                if (rec.matched_users && rec.matched_users.length > 0) {
+                    grid.innerHTML = rec.matched_users.map(u => `
+                        <div class="glass-card recommendation-card">
+                            <div class="avatar">${getInitials(u.full_name)}</div>
+                            <div class="recommendation-info">
+                                <h4>${u.full_name}</h4>
+                                <p>Teaches <strong>${u.teaches}</strong> · You want <strong>${u.user_wants}</strong></p>
+                            </div>
+                            <a href="/skills.html" class="btn btn-sm btn-primary">View</a>
+                        </div>
+                    `).join('');
+                }
+
+                // Affordable paid skills
+                if (featureFlags.PAID_LEARNING && rec.affordable_skills && rec.affordable_skills.length > 0) {
+                    document.getElementById('affordableSection').style.display = '';
+                    document.getElementById('affordableGrid').innerHTML = rec.affordable_skills.map(s => `
+                        <div class="glass-card skill-card">
+                            <div class="skill-card-header">
+                                <h3>${s.name}</h3>
+                                <div class="price-tag">₹${parseFloat(s.price_per_session).toFixed(0)}<span>/session</span></div>
+                            </div>
+                            <div class="skill-meta">
+                                <span class="badge badge-primary">${s.category}</span>
+                            </div>
+                            <div class="skill-user">
+                                <div class="avatar avatar-sm">${getInitials(s.full_name)}</div>
+                                <span>${s.full_name}</span>
+                            </div>
+                            <button class="btn btn-sm btn-paid mt-1" onclick="window.location.href='/payment.html?skillId=${s.id}&instructorId=${s.user_id}'">💰 Pay to Learn</button>
+                        </div>
+                    `).join('');
+                }
+
+                // Trending
+                if (rec.trending_skills && rec.trending_skills.length > 0) {
+                    document.getElementById('trendingSkills').innerHTML = rec.trending_skills.map(s =>
+                        `<span class="badge badge-primary">${s.name} (${s.request_count})</span>`
+                    ).join('');
+                } else {
+                    document.getElementById('trendingSkills').innerHTML = '<span class="badge badge-primary">Add skills to see trends</span>';
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+
+</html>

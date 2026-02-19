@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earnings — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="page-content">
+        <div class="container" style="padding-top:2rem;padding-bottom:3rem;">
+            <div class="page-header">
+                <h1>💰 Instructor Earnings</h1>
+                <p>Track your paid sessions and revenue</p>
+            </div>
+
+            <!-- Earnings Stats -->
+            <div class="dashboard-grid" id="earningsStats" style="margin-bottom:2rem;">
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">💵</div>
+                    <div class="stat-value" id="totalEarnings">₹0</div>
+                    <div class="stat-label">Total Earnings</div>
+                </div>
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="monthEarnings">₹0</div>
+                    <div class="stat-label">This Month</div>
+                </div>
+                <div class="glass-card stat-card">
+                    <div class="stat-icon">🎓</div>
+                    <div class="stat-value" id="paidSessions">0</div>
+                    <div class="stat-label">Paid Sessions</div>
+                </div>
+            </div>
+
+            <!-- Recent Transactions -->
+            <div class="dashboard-section">
+                <h2>📋 Recent Transactions</h2>
+                <div id="transactionsList">
+                    <div class="skeleton skeleton-card glass-card"></div>
+                </div>
+            </div>
+
+            <!-- My Payment History (as learner) -->
+            <div class="dashboard-section" style="margin-top:2rem;">
+                <h2>🧾 My Payment History</h2>
+                <div id="paymentHistory">
+                    <div class="skeleton skeleton-card glass-card"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        async function init() {
+            const user = await checkAuth();
+            if (!user) return;
+
+            // Load earnings (as instructor)
+            try {
+                const data = await api.get('/payments/earnings');
+                const s = data.summary;
+                document.getElementById('totalEarnings').textContent = `₹${parseFloat(s.total_earnings).toFixed(2)}`;
+                document.getElementById('monthEarnings').textContent = `₹${parseFloat(s.this_month).toFixed(2)}`;
+                document.getElementById('paidSessions').textContent = s.total_paid_sessions;
+
+                const txList = document.getElementById('transactionsList');
+                if (data.recent.length === 0) {
+                    txList.innerHTML = `
+                        <div class="empty-state glass-card-static">
+                            <div class="empty-icon">💵</div>
+                            <h3>No earnings yet</h3>
+                            <p>Set a price on your teach skills to start earning</p>
+                            <a href="/skills.html" class="btn btn-primary btn-sm">Manage Skills</a>
+                        </div>`;
+                } else {
+                    txList.innerHTML = data.recent.map(p => `
+                        <div class="glass-card transaction-card">
+                            <div class="transaction-info">
+                                <h4>${p.skill_name}</h4>
+                                <p>Learner: <strong>${p.payer_name}</strong></p>
+                                <span class="badge badge-success">${p.status}</span>
+                            </div>
+                            <div class="transaction-amount">
+                                <span class="price-highlight">₹${parseFloat(p.amount).toFixed(2)}</span>
+                                <span class="transaction-date">${formatDate(p.created_at)}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) { console.error(err); }
+
+            // Load payment history (as learner)
+            try {
+                const payments = await api.get('/payments/history');
+                const histDiv = document.getElementById('paymentHistory');
+                if (payments.length === 0) {
+                    histDiv.innerHTML = `
+                        <div class="empty-state glass-card-static">
+                            <div class="empty-icon">🧾</div>
+                            <h3>No payments yet</h3>
+                            <p>Browse skills and pay to learn from experts</p>
+                            <a href="/skills.html" class="btn btn-primary btn-sm">Browse Skills</a>
+                        </div>`;
+                } else {
+                    histDiv.innerHTML = payments.map(p => `
+                        <div class="glass-card transaction-card">
+                            <div class="transaction-info">
+                                <h4>${p.skill_name}</h4>
+                                <p>Instructor: <strong>${p.instructor_name}</strong></p>
+                                <span class="badge badge-${p.status === 'paid' ? 'success' : p.status === 'failed' ? 'danger' : 'warning'}">${p.status}</span>
+                            </div>
+                            <div class="transaction-amount">
+                                <span class="price-highlight">₹${parseFloat(p.amount).toFixed(2)}</span>
+                                <span class="transaction-date">${formatDate(p.created_at)}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

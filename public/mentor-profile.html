@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mentor Profile — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="page-content" style="padding-top:var(--navbar-height);">
+        <div class="container" id="profileContainer" style="max-width:900px;margin:0 auto;padding:2rem 1rem;">
+
+            <!-- Loading State -->
+            <div class="empty-state" id="loadingState">
+                <div class="empty-icon">⏳</div>
+                <h3>Loading mentor profile...</h3>
+            </div>
+
+            <!-- Profile Content (hidden until loaded) -->
+            <div id="profileContent" style="display:none;">
+
+                <!-- ═════ 1. PROFILE HEADER ═════ -->
+                <div class="glass-card mentor-profile-header">
+                    <div class="mentor-header-top">
+                        <div class="avatar avatar-lg" id="mentorAvatar">?</div>
+                        <div class="mentor-header-info">
+                            <h1 id="mentorName" style="font-size:1.6rem;margin:0;">Mentor Name</h1>
+                            <div class="mentor-skills-tags" id="mentorSkills"></div>
+                            <div class="mentor-rating-row">
+                                <div class="star-display" id="headerStars"></div>
+                                <span class="rating-value" id="headerRatingValue">0.0</span>
+                                <span class="review-count-badge" id="headerReviewCount">(0 reviews)</span>
+                            </div>
+                            <div class="reputation-badge-row">
+                                <div class="reputation-badge" id="reputationBadge">
+                                    <span class="rep-label">Reputation</span>
+                                    <span class="rep-score" id="repScore">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mentor-header-actions" id="mentorActions"></div>
+                </div>
+
+                <!-- ═════ 2. ABOUT ═════ -->
+                <div class="glass-card mt-2" id="aboutSection">
+                    <h2 class="section-title">👤 About</h2>
+                    <p id="mentorBio" class="mentor-bio">No bio available.</p>
+                    <div class="mentor-details-grid" id="mentorDetails"></div>
+                </div>
+
+                <!-- ═════ 3. FEATURED TESTIMONIALS ═════ -->
+                <div class="glass-card mt-2" id="testimonialsSection" style="display:none;">
+                    <h2 class="section-title">⭐ Featured Testimonials</h2>
+                    <div class="testimonials-carousel" id="testimonialCarousel"></div>
+                </div>
+
+                <!-- ═════ 4. STATISTICS PANEL ═════ -->
+                <div class="glass-card mt-2" id="statsSection">
+                    <h2 class="section-title">📊 Statistics</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="statSessions">0</div>
+                            <div class="stat-label">Sessions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statCompletion">0%</div>
+                            <div class="stat-label">Completion</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statResponse">0%</div>
+                            <div class="stat-label">Response</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statReviews">0</div>
+                            <div class="stat-label">Reviews</div>
+                        </div>
+                    </div>
+                    <div class="rating-distribution" id="ratingDistribution"></div>
+                </div>
+
+                <!-- ═════ 5. ALL REVIEWS ═════ -->
+                <div class="glass-card mt-2" id="reviewsSection">
+                    <div class="reviews-header">
+                        <h2 class="section-title" style="margin:0;">💬 Reviews</h2>
+                        <div class="reviews-controls">
+                            <select class="form-control" id="ratingFilter" onchange="loadReviews()"
+                                style="width:auto;font-size:0.85rem;">
+                                <option value="">All Ratings</option>
+                                <option value="5">⭐ 5 Stars</option>
+                                <option value="4">⭐ 4 Stars</option>
+                                <option value="3">⭐ 3 Stars</option>
+                                <option value="2">⭐ 2 Stars</option>
+                                <option value="1">⭐ 1 Star</option>
+                            </select>
+                            <select class="form-control" id="sortOrder" onchange="loadReviews()"
+                                style="width:auto;font-size:0.85rem;">
+                                <option value="newest">Newest</option>
+                                <option value="oldest">Oldest</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="reviewsList" class="reviews-list"></div>
+                    <div id="reviewsPagination" class="reviews-pagination"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Review Modal -->
+    <div class="modal-overlay" id="reviewModal" style="display:none;"
+        onclick="if(event.target===this)closeReviewModal()">
+        <div class="glass-card modal-content" style="max-width:500px;">
+            <h3>Leave a Review</h3>
+            <div class="star-input" id="starInput">
+                <span class="star-btn" onclick="setRating(1)">★</span>
+                <span class="star-btn" onclick="setRating(2)">★</span>
+                <span class="star-btn" onclick="setRating(3)">★</span>
+                <span class="star-btn" onclick="setRating(4)">★</span>
+                <span class="star-btn" onclick="setRating(5)">★</span>
+            </div>
+            <p id="ratingLabel" style="text-align:center;color:var(--text-muted);font-size:0.9rem;">Select a rating</p>
+            <textarea class="form-control" id="reviewComment" rows="4" placeholder="Share your experience (optional)"
+                style="margin-top:1rem;"></textarea>
+            <input type="hidden" id="reviewSessionId">
+            <div style="display:flex;gap:0.75rem;margin-top:1.5rem;">
+                <button class="btn btn-secondary" onclick="closeReviewModal()" style="flex:1;">Cancel</button>
+                <button class="btn btn-primary" onclick="submitReview()" style="flex:1;" id="submitReviewBtn">Submit
+                    Review</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        let currentUser = null;
+        let mentorId = null;
+        let mentorData = null;
+        let selectedRating = 0;
+        let currentPage = 1;
+        let featureFlags = {};
+
+        async function init() {
+            currentUser = await checkAuth();
+            try { featureFlags = await api.get('/features'); } catch (e) { featureFlags = {}; }
+
+            const params = new URLSearchParams(window.location.search);
+            mentorId = params.get('id');
+            if (!mentorId) {
+                document.getElementById('loadingState').innerHTML = '<div class="empty-icon">❌</div><h3>No mentor ID provided</h3><a href="/skills.html" class="btn btn-primary mt-1">Browse Skills</a>';
+                return;
+            }
+
+            try {
+                // Load mentor profile
+                mentorData = await api.get(`/users/${mentorId}`);
+                document.title = `${mentorData.full_name} — Skill Swap`;
+
+                // Load reputation stats
+                let repData = null;
+                if (featureFlags.REVIEWS_RATINGS) {
+                    try { repData = await api.get(`/reputation/${mentorId}`); } catch (e) { }
+                }
+
+                renderProfileHeader(mentorData, repData);
+                renderAbout(mentorData);
+
+                if (featureFlags.REVIEWS_RATINGS) {
+                    renderStats(repData);
+                    await loadTestimonials();
+                    await loadReviews();
+                }
+
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('profileContent').style.display = 'block';
+            } catch (err) {
+                document.getElementById('loadingState').innerHTML = '<div class="empty-icon">❌</div><h3>Mentor not found</h3><a href="/skills.html" class="btn btn-primary mt-1">Browse Skills</a>';
+            }
+        }
+
+        // ── RENDER PROFILE HEADER ──────────────────
+
+        function renderProfileHeader(user, repData) {
+            document.getElementById('mentorAvatar').textContent = getInitials(user.full_name);
+            document.getElementById('mentorName').textContent = user.full_name;
+
+            // Skills tags
+            const teachSkills = (user.skills || []).filter(s => s.type === 'teach');
+            document.getElementById('mentorSkills').innerHTML = teachSkills.map(s =>
+                `<span class="skill-tag">${s.name}</span>`
+            ).join('');
+
+            // Stars
+            const avg = parseFloat(user.average_rating) || 0;
+            document.getElementById('headerStars').innerHTML = renderStars(avg);
+            document.getElementById('headerRatingValue').textContent = avg ? avg.toFixed(1) : '—';
+            document.getElementById('headerReviewCount').textContent = `(${user.review_count || 0} reviews)`;
+
+            // Reputation badge
+            if (repData && repData.stats.reputation_score) {
+                const score = parseFloat(repData.stats.reputation_score);
+                const badge = document.getElementById('reputationBadge');
+                document.getElementById('repScore').textContent = score.toFixed(1) + ' / 5.0';
+                badge.classList.add(score >= 4 ? 'rep-gold' : score >= 3 ? 'rep-silver' : 'rep-bronze');
+            }
+
+            // Action buttons
+            let actionsHtml = '';
+            if (currentUser && currentUser.id !== parseInt(mentorId)) {
+                actionsHtml += `<a href="/skills.html" class="btn btn-primary">🔄 Swap Skills</a>`;
+            }
+            document.getElementById('mentorActions').innerHTML = actionsHtml;
+        }
+
+        // ── RENDER ABOUT ───────────────────────────
+
+        function renderAbout(user) {
+            document.getElementById('mentorBio').textContent = user.bio || 'No bio available.';
+
+            let detailsHtml = '';
+            if (user.location) detailsHtml += `<div class="detail-item"><span class="detail-icon">📍</span><span>${user.location}</span></div>`;
+            const memberSince = new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+            detailsHtml += `<div class="detail-item"><span class="detail-icon">📅</span><span>Member since ${memberSince}</span></div>`;
+
+            document.getElementById('mentorDetails').innerHTML = detailsHtml;
+        }
+
+        // ── RENDER STATS ───────────────────────────
+
+        function renderStats(repData) {
+            if (!repData) return;
+
+            document.getElementById('statSessions').textContent = repData.stats.completed_sessions;
+            document.getElementById('statCompletion').textContent = repData.stats.completion_rate + '%';
+            document.getElementById('statResponse').textContent = repData.stats.response_rate + '%';
+            document.getElementById('statReviews').textContent = repData.stats.total_reviews;
+
+            // Rating distribution bars
+            const dist = repData.rating_distribution;
+            const total = Object.values(dist).reduce((a, b) => a + b, 0);
+            let distHtml = '';
+            for (let i = 5; i >= 1; i--) {
+                const count = dist[i] || 0;
+                const pct = total > 0 ? (count / total * 100).toFixed(0) : 0;
+                const barColor = i >= 4 ? 'var(--accent-green)' : i === 3 ? 'var(--accent-yellow, #f59e0b)' : '#ef4444';
+                distHtml += `
+                    <div class="dist-row">
+                        <span class="dist-label">${i} ★</span>
+                        <div class="dist-bar-track">
+                            <div class="dist-bar-fill" style="width:${pct}%;background:${barColor};"></div>
+                        </div>
+                        <span class="dist-count">${count}</span>
+                    </div>`;
+            }
+            document.getElementById('ratingDistribution').innerHTML = distHtml;
+        }
+
+        // ── TESTIMONIALS ───────────────────────────
+
+        async function loadTestimonials() {
+            try {
+                const testimonials = await api.get(`/testimonials/mentor/${mentorId}`);
+                if (testimonials.length === 0) return;
+
+                document.getElementById('testimonialsSection').style.display = 'block';
+                document.getElementById('testimonialCarousel').innerHTML = testimonials.map(t => `
+                    <div class="testimonial-card">
+                        <div class="testimonial-stars">${renderStars(t.rating)}</div>
+                        <p class="testimonial-quote">"${t.comment || 'Great experience!'}"</p>
+                        <div class="testimonial-author">
+                            <div class="avatar avatar-xs">${getInitials(t.learner_name)}</div>
+                            <span>${t.learner_name.split(' ')[0]}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        // ── REVIEWS ────────────────────────────────
+
+        async function loadReviews() {
+            try {
+                const rating = document.getElementById('ratingFilter').value;
+                const sort = document.getElementById('sortOrder').value;
+                const url = `/reviews/mentor/${mentorId}?page=${currentPage}&limit=10${rating ? '&rating=' + rating : ''}&sort=${sort}`;
+                const data = await api.get(url);
+
+                const container = document.getElementById('reviewsList');
+                if (data.reviews.length === 0) {
+                    container.innerHTML = '<div class="empty-state" style="padding:2rem;"><p>No reviews yet</p></div>';
+                    document.getElementById('reviewsPagination').innerHTML = '';
+                    return;
+                }
+
+                container.innerHTML = data.reviews.map(r => {
+                    const isOwn = currentUser && r.learner_id === currentUser.id;
+                    const isMentor = currentUser && parseInt(mentorId) === currentUser.id;
+                    return `
+                    <div class="review-card" id="review-${r.id}">
+                        <div class="review-card-header">
+                            <div class="avatar avatar-xs">${getInitials(r.full_name)}</div>
+                            <div>
+                                <strong>${r.full_name}</strong>
+                                <span class="verified-badge">✓ Verified Session</span>
+                            </div>
+                            <div class="review-card-actions">
+                                ${isMentor ? `<button class="btn btn-sm btn-outline" onclick="featureTestimonial(${r.id})">⭐ Feature</button>` : ''}
+                                ${isOwn ? `<button class="btn btn-sm btn-outline" onclick="deleteReview(${r.id})" style="color:#ef4444;">🗑️</button>` : ''}
+                            </div>
+                        </div>
+                        <div class="review-stars">${renderStars(r.rating)}</div>
+                        ${r.comment ? `<p class="review-comment">${r.comment}</p>` : ''}
+                        <div class="review-date">${new Date(r.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                    </div>`;
+                }).join('');
+
+                // Pagination
+                if (data.totalPages > 1) {
+                    let pagHtml = '';
+                    for (let i = 1; i <= data.totalPages; i++) {
+                        pagHtml += `<button class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-secondary'}" onclick="goToPage(${i})">${i}</button>`;
+                    }
+                    document.getElementById('reviewsPagination').innerHTML = pagHtml;
+                } else {
+                    document.getElementById('reviewsPagination').innerHTML = '';
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            loadReviews();
+        }
+
+        // ── STAR HELPERS ───────────────────────────
+
+        function renderStars(rating) {
+            let html = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= Math.floor(rating)) html += '<span class="star filled">★</span>';
+                else if (i - rating < 1 && i - rating > 0) html += '<span class="star half">★</span>';
+                else html += '<span class="star empty">★</span>';
+            }
+            return html;
+        }
+
+        // ── REVIEW MODAL ───────────────────────────
+
+        function openReviewModal(sessionId) {
+            selectedRating = 0;
+            document.getElementById('reviewSessionId').value = sessionId;
+            document.getElementById('reviewComment').value = '';
+            updateStarInput(0);
+            document.getElementById('reviewModal').style.display = 'flex';
+        }
+
+        function closeReviewModal() {
+            document.getElementById('reviewModal').style.display = 'none';
+        }
+
+        function setRating(rating) {
+            selectedRating = rating;
+            updateStarInput(rating);
+        }
+
+        function updateStarInput(rating) {
+            const stars = document.querySelectorAll('#starInput .star-btn');
+            const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+            stars.forEach((s, i) => {
+                s.classList.toggle('active', i < rating);
+            });
+            document.getElementById('ratingLabel').textContent = rating > 0 ? labels[rating] : 'Select a rating';
+        }
+
+        async function submitReview() {
+            if (selectedRating === 0) return showToast('Please select a rating', 'error');
+
+            const sessionId = document.getElementById('reviewSessionId').value;
+            const comment = document.getElementById('reviewComment').value.trim();
+
+            try {
+                document.getElementById('submitReviewBtn').disabled = true;
+                await api.post('/reviews', {
+                    session_id: parseInt(sessionId),
+                    rating: selectedRating,
+                    comment: comment || null
+                });
+                showToast('Review submitted! Thank you.', 'success');
+                closeReviewModal();
+                // Reload stats and reviews
+                const repData = await api.get(`/reputation/${mentorId}`);
+                mentorData = await api.get(`/users/${mentorId}`);
+                renderProfileHeader(mentorData, repData);
+                renderStats(repData);
+                await loadReviews();
+            } catch (err) {
+                showToast(err.message || 'Failed to submit review', 'error');
+            } finally {
+                document.getElementById('submitReviewBtn').disabled = false;
+            }
+        }
+
+        // ── ACTIONS ────────────────────────────────
+
+        async function featureTestimonial(reviewId) {
+            try {
+                await api.post('/testimonials', { review_id: reviewId });
+                showToast('Review featured as testimonial!', 'success');
+                await loadTestimonials();
+                await loadReviews();
+            } catch (err) {
+                showToast(err.message || 'Failed to feature', 'error');
+            }
+        }
+
+        async function deleteReview(reviewId) {
+            if (!confirm('Delete this review?')) return;
+            try {
+                await api.delete(`/reviews/${reviewId}`);
+                showToast('Review deleted', 'success');
+                const repData = await api.get(`/reputation/${mentorId}`);
+                mentorData = await api.get(`/users/${mentorId}`);
+                renderProfileHeader(mentorData, repData);
+                renderStats(repData);
+                await loadReviews();
+            } catch (err) {
+                showToast(err.message || 'Failed to delete', 'error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

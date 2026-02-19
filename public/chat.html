@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+    <div class="page-content" style="padding-top:var(--navbar-height);">
+        <div class="chat-container">
+            <!-- Sidebar -->
+            <div class="chat-sidebar" id="chatSidebar">
+                <div class="chat-sidebar-header">
+                    <h3 style="font-size:1.1rem;">💬 Conversations</h3>
+                </div>
+                <!-- Search conversations -->
+                <div style="padding:0.5rem 0.75rem;">
+                    <input type="text" class="form-control" id="conversationSearch"
+                        placeholder="Search conversations..." style="font-size:0.85rem;padding:0.5rem 0.75rem;"
+                        oninput="filterConversations(this.value)">
+                </div>
+                <div class="chat-list" id="chatList">
+                    <div class="empty-state" style="padding:2rem;">
+                        <p>No conversations yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chat -->
+            <div class="chat-main" id="chatMain">
+                <div class="chat-header" id="chatHeader" style="display:none;">
+                    <div class="avatar avatar-sm" id="chatAvatar">?</div>
+                    <div style="flex:1;min-width:0;">
+                        <h4 id="chatPartnerName" style="font-size:0.95rem;">Partner</h4>
+                        <div class="typing-indicator" id="typingIndicator"></div>
+                    </div>
+                    <!-- Chat Actions -->
+                    <div class="chat-actions">
+                        <button class="btn-icon" onclick="toggleSearchBar()" title="Search messages">🔍</button>
+                        <button class="btn-icon" id="chatMenuBtn" onclick="toggleChatMenu()"
+                            title="More options">⋮</button>
+                        <button class="btn btn-sm btn-secondary" onclick="toggleSidebar()" style="display:none;"
+                            id="sidebarToggle">☰</button>
+                    </div>
+                    <!-- Dropdown Menu -->
+                    <div class="chat-dropdown" id="chatDropdown">
+                        <button onclick="clearChat()">🧹 Clear Chat</button>
+                        <button onclick="deleteConversation()">🗑️ Delete Conversation</button>
+                        <button onclick="exportChat()">📥 Export Chat</button>
+                    </div>
+                </div>
+
+                <!-- Search Bar (hidden by default) -->
+                <div class="chat-search-bar" id="chatSearchBar" style="display:none;">
+                    <input type="text" class="form-control" id="messageSearchInput"
+                        placeholder="Search in this conversation..." oninput="searchMessages(this.value)">
+                    <span id="searchResultCount"
+                        style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;"></span>
+                    <button class="btn-icon" onclick="toggleSearchBar()" title="Close search">✕</button>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <div class="empty-state">
+                        <div class="empty-icon">💬</div>
+                        <h3>Select a conversation</h3>
+                        <p>Choose a conversation from the sidebar to start chatting</p>
+                    </div>
+                </div>
+                <div class="chat-input-area" id="chatInputArea" style="display:none;">
+                    <input type="text" class="form-control" id="messageInput" placeholder="Type a message..."
+                        autocomplete="off">
+                    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        let currentUser = null;
+        let socket = null;
+        let activeRequestId = null;
+        let typingTimeout = null;
+        let featureFlags = {};
+        let allConversations = []; // for sidebar filtering
+        let allMessages = [];      // for message search
+
+        async function init() {
+            currentUser = await checkAuth();
+            if (!currentUser) return;
+
+            try { featureFlags = await api.get('/features'); } catch (e) { featureFlags = {}; }
+
+            socket = io();
+            socket.on('newMessage', (msg) => {
+                appendMessage(msg);
+                allMessages.push(msg);
+            });
+            socket.on('userTyping', (d) => { document.getElementById('typingIndicator').textContent = `${d.username} is typing...`; });
+            socket.on('userStopTyping', () => { document.getElementById('typingIndicator').textContent = ''; });
+
+            // Load conversations
+            await loadConversations();
+
+            // Check URL params — auto-open the right chat
+            const params = new URLSearchParams(window.location.search);
+            const rid = params.get('requestId');
+            const pid = params.get('paymentId');
+
+            if (pid && featureFlags.PAID_LEARNING) {
+                openPaidChat(parseInt(pid));
+            } else if (rid) {
+                openChat(parseInt(rid));
+            }
+
+            // Mobile sidebar toggle
+            if (window.innerWidth <= 768) document.getElementById('sidebarToggle').style.display = 'inline-flex';
+
+            // Enter key
+            document.getElementById('messageInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+                else {
+                    socket.emit('typing', { requestId: activeRequestId, username: currentUser.username });
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => socket.emit('stopTyping', { requestId: activeRequestId }), 1500);
+                }
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                const dropdown = document.getElementById('chatDropdown');
+                const menuBtn = document.getElementById('chatMenuBtn');
+                if (!dropdown.contains(e.target) && !menuBtn.contains(e.target)) {
+                    dropdown.classList.remove('open');
+                }
+            });
+        }
+
+        // ── CONVERSATIONS ──────────────────────────
+
+        async function loadConversations() {
+            try {
+                const list = document.getElementById('chatList');
+                allConversations = [];
+
+                // 1. Swap conversations — exclude deleted ones
+                const requests = await api.get('/requests');
+                const accepted = requests.filter(r => r.status === 'accepted');
+
+                accepted.forEach(r => {
+                    const isSender = r.sender_id === currentUser.id;
+                    const partner = isSender ? r.receiver_name : r.sender_name;
+                    allConversations.push({
+                        id: r.id,
+                        type: 'swap',
+                        partner,
+                        subtitle: `🔄 ${r.sender_skill_name} ⇄ ${r.receiver_skill_name}`,
+                        onclick: `openChat(${r.id})`
+                    });
+                });
+
+                // 2. Paid session conversations
+                if (featureFlags.PAID_LEARNING) {
+                    try {
+                        const sessions = await api.get('/sessions');
+                        // Exclude paid sessions that were deleted from the chat
+                        const paidSessions = sessions.filter(s => s.session_type === 'paid' && s.payment_id && s.status !== 'chat_deleted');
+                        const seenPayments = new Set();
+                        paidSessions.forEach(s => {
+                            if (seenPayments.has(s.payment_id)) return;
+                            seenPayments.add(s.payment_id);
+                            const isHost = s.host_id === currentUser.id;
+                            const partnerName = isHost ? s.participant_name : s.host_name;
+                            allConversations.push({
+                                id: `paid-${s.payment_id}`,
+                                type: 'paid',
+                                partner: partnerName,
+                                subtitle: `💰 ${s.title}`,
+                                onclick: `openPaidChat(${s.payment_id})`
+                            });
+                        });
+                    } catch (e) { console.error(e); }
+                }
+
+                renderConversations(allConversations);
+            } catch (err) { console.error(err); }
+        }
+
+        function renderConversations(convos) {
+            const list = document.getElementById('chatList');
+            if (convos.length === 0) {
+                list.innerHTML = '<div class="empty-state" style="padding:2rem;"><p>No conversations yet</p><a href="/skills.html" class="btn btn-sm btn-primary mt-1">Find Partners</a></div>';
+                return;
+            }
+            list.innerHTML = convos.map(c => `
+                <div class="chat-list-item" data-id="${c.id}" data-type="${c.type}" onclick="${c.onclick}">
+                    <div class="avatar avatar-sm">${getInitials(c.partner)}</div>
+                    <div class="chat-preview">
+                        <h4>${c.partner}</h4>
+                        <p>${c.subtitle}</p>
+                    </div>
+                    <button class="chat-item-delete" onclick="event.stopPropagation(); deleteConversationById('${c.id}', '${c.type}')" title="Delete conversation">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function filterConversations(query) {
+            if (!query) return renderConversations(allConversations);
+            const q = query.toLowerCase();
+            const filtered = allConversations.filter(c =>
+                c.partner.toLowerCase().includes(q) || c.subtitle.toLowerCase().includes(q)
+            );
+            renderConversations(filtered);
+        }
+
+        // ── OPEN CHAT ──────────────────────────────
+
+        async function openChat(requestId) {
+            activeRequestId = requestId;
+            closeChatMenu();
+            closeSearchBar();
+
+            // Highlight active
+            document.querySelectorAll('.chat-list-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.querySelector(`.chat-list-item[data-id="${requestId}"]`);
+            if (activeEl) activeEl.classList.add('active');
+
+            try {
+                const requests = await api.get('/requests');
+                const req = requests.find(r => r.id === requestId);
+                if (!req) return;
+
+                const isSender = req.sender_id === currentUser.id;
+                const partner = isSender ? req.receiver_name : req.sender_name;
+
+                showChatHeader(partner);
+
+                socket.emit('joinRoom', requestId);
+
+                const messages = await api.get(`/messages/${requestId}`);
+                allMessages = messages;
+                renderMessages(messages);
+
+                if (window.innerWidth <= 768) document.getElementById('chatSidebar').classList.remove('open');
+            } catch (err) { showToast('Failed to load chat', 'error'); }
+        }
+
+        async function openPaidChat(paymentId) {
+            const chatKey = -paymentId;
+            activeRequestId = chatKey;
+            closeChatMenu();
+            closeSearchBar();
+
+            document.querySelectorAll('.chat-list-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.querySelector(`.chat-list-item[data-id="paid-${paymentId}"]`);
+            if (activeEl) activeEl.classList.add('active');
+
+            try {
+                const sessions = await api.get('/sessions');
+                const session = sessions.find(s => s.payment_id === paymentId && s.session_type === 'paid');
+                let partnerName = 'Partner';
+                if (session) {
+                    const isHost = session.host_id === currentUser.id;
+                    partnerName = isHost ? session.participant_name : session.host_name;
+                }
+
+                showChatHeader(partnerName + ' (Paid)');
+                socket.emit('joinRoom', chatKey);
+
+                const messages = await api.get(`/messages/paid/${paymentId}`);
+                allMessages = messages;
+                renderMessages(messages);
+
+                if (window.innerWidth <= 768) document.getElementById('chatSidebar').classList.remove('open');
+            } catch (err) { showToast('Failed to load paid chat', 'error'); }
+        }
+
+        function showChatHeader(partnerName) {
+            document.getElementById('chatHeader').style.display = 'flex';
+            document.getElementById('chatInputArea').style.display = 'flex';
+            document.getElementById('chatAvatar').textContent = getInitials(partnerName.replace(' (Paid)', ''));
+            document.getElementById('chatPartnerName').textContent = partnerName;
+        }
+
+        // ── RENDER MESSAGES ────────────────────────
+
+        function renderMessages(messages) {
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '';
+            messages.forEach(m => appendMessage(m));
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendMessage(msg) {
+            const container = document.getElementById('chatMessages');
+            const isMine = msg.sender_id === currentUser.id;
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${isMine ? 'sent' : 'received'}`;
+            bubble.id = `msg-${msg.id}`;
+            bubble.innerHTML = `
+                <div class="bubble-content">${msg.content}</div>
+                <div class="bubble-meta">
+                    <span class="bubble-time">${formatTime(msg.created_at)}</span>
+                    ${isMine ? `<button class="msg-delete-btn" onclick="deleteMessage(${msg.id})" title="Delete message">✕</button>` : ''}
+                </div>`;
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ── SEND MESSAGE ───────────────────────────
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content || !activeRequestId) return;
+
+            socket.emit('sendMessage', {
+                requestId: activeRequestId,
+                senderId: currentUser.id,
+                content
+            });
+            socket.emit('stopTyping', { requestId: activeRequestId });
+            input.value = '';
+            input.focus();
+        }
+
+        // ── DELETE MESSAGE ─────────────────────────
+
+        async function deleteMessage(msgId) {
+            if (!confirm('Delete this message?')) return;
+            try {
+                await api.delete(`/messages/${activeRequestId}/message/${msgId}`);
+                const el = document.getElementById(`msg-${msgId}`);
+                if (el) {
+                    el.style.opacity = '0';
+                    el.style.transform = 'scale(0.8)';
+                    setTimeout(() => el.remove(), 200);
+                }
+                allMessages = allMessages.filter(m => m.id !== msgId);
+                showToast('Message deleted', 'success');
+            } catch (err) {
+                showToast(err.message || 'Failed to delete', 'error');
+            }
+        }
+
+        // ── CLEAR CHAT ─────────────────────────────
+
+        async function clearChat() {
+            if (!activeRequestId) return;
+            if (!confirm('Clear all messages in this conversation? This cannot be undone.')) return;
+            try {
+                const res = await api.delete(`/messages/${activeRequestId}/clear`);
+                document.getElementById('chatMessages').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🧹</div>
+                        <h3>Chat cleared</h3>
+                        <p>All messages have been removed</p>
+                    </div>`;
+                allMessages = [];
+                showToast(`Cleared ${res.deleted} messages`, 'success');
+                closeChatMenu();
+            } catch (err) {
+                showToast(err.message || 'Failed to clear chat', 'error');
+            }
+        }
+
+        // ── DELETE CONVERSATION ────────────────────
+
+        // From three-dot menu — delete the currently active conversation
+        async function deleteConversation() {
+            if (!activeRequestId) return;
+
+            // Determine type from active sidebar item
+            const activeItem = document.querySelector('.chat-list-item.active');
+            const type = activeItem ? activeItem.dataset.type : 'swap';
+            const id = activeItem ? activeItem.dataset.id : activeRequestId;
+
+            await deleteConversationById(id, type);
+        }
+
+        // From sidebar ✕ button — delete by ID and type
+        async function deleteConversationById(id, type) {
+            if (!confirm('Delete this conversation? All messages will be lost. This cannot be undone.')) return;
+
+            try {
+                if (type === 'swap') {
+                    const requestId = parseInt(id);
+                    // Clear messages, then permanently mark request as deleted
+                    await api.delete(`/messages/${requestId}/clear`);
+                    await api.delete(`/requests/${requestId}`);
+                } else if (type === 'paid') {
+                    const paymentId = parseInt(String(id).replace('paid-', ''));
+                    const chatKey = -paymentId;
+                    // Clear messages, then mark sessions as chat_deleted
+                    await api.delete(`/messages/${chatKey}/clear`);
+                    await api.delete(`/sessions/paid/${paymentId}`);
+                }
+
+                // Remove from allConversations
+                allConversations = allConversations.filter(c => String(c.id) !== String(id));
+                renderConversations(allConversations);
+
+                // If the deleted conversation was the active one, reset the chat panel
+                const wasActive = (
+                    (type === 'swap' && activeRequestId === parseInt(id)) ||
+                    (type === 'paid' && activeRequestId === -parseInt(String(id).replace('paid-', '')))
+                );
+
+                if (wasActive) {
+                    activeRequestId = null;
+                    allMessages = [];
+                    document.getElementById('chatHeader').style.display = 'none';
+                    document.getElementById('chatInputArea').style.display = 'none';
+                    document.getElementById('chatMessages').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">💬</div>
+                            <h3>Select a conversation</h3>
+                            <p>Choose a conversation from the sidebar to start chatting</p>
+                        </div>`;
+                }
+
+                showToast('Conversation deleted', 'success');
+                closeChatMenu();
+            } catch (err) {
+                showToast(err.message || 'Failed to delete conversation', 'error');
+            }
+        }
+
+        // ── EXPORT CHAT ────────────────────────────
+
+        function exportChat() {
+            if (!allMessages.length) return showToast('No messages to export', 'error');
+
+            const partnerName = document.getElementById('chatPartnerName').textContent;
+            let text = `Chat with ${partnerName}\nExported on ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`;
+
+            allMessages.forEach(m => {
+                const sender = m.sender_id === currentUser.id ? 'You' : (m.full_name || m.username);
+                const time = new Date(m.created_at).toLocaleString();
+                text += `[${time}] ${sender}: ${m.content}\n`;
+            });
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_${partnerName.replace(/\s+/g, '_')}_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Chat exported', 'success');
+            closeChatMenu();
+        }
+
+        // ── SEARCH MESSAGES ────────────────────────
+
+        let searchDebounce = null;
+        function searchMessages(query) {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(() => {
+                const countEl = document.getElementById('searchResultCount');
+                if (!query || query.length < 2) {
+                    renderMessages(allMessages);
+                    countEl.textContent = '';
+                    return;
+                }
+
+                const q = query.toLowerCase();
+                const results = allMessages.filter(m => m.content.toLowerCase().includes(q));
+                countEl.textContent = `${results.length} found`;
+
+                // Render all but highlight matches
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = '';
+                allMessages.forEach(m => {
+                    const isMine = m.sender_id === currentUser.id;
+                    const bubble = document.createElement('div');
+
+                    const matches = m.content.toLowerCase().includes(q);
+                    bubble.className = `chat-bubble ${isMine ? 'sent' : 'received'} ${matches ? 'search-highlight' : 'search-dim'}`;
+                    bubble.id = `msg-${m.id}`;
+
+                    // Highlight the search term within content
+                    let displayContent = m.content;
+                    if (matches) {
+                        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                        displayContent = m.content.replace(regex, '<mark>$1</mark>');
+                    }
+
+                    bubble.innerHTML = `
+                        <div class="bubble-content">${displayContent}</div>
+                        <div class="bubble-meta">
+                            <span class="bubble-time">${formatTime(m.created_at)}</span>
+                            ${isMine ? `<button class="msg-delete-btn" onclick="deleteMessage(${m.id})" title="Delete">✕</button>` : ''}
+                        </div>`;
+                    container.appendChild(bubble);
+                });
+
+                // Scroll to first match
+                const firstMatch = container.querySelector('.search-highlight');
+                if (firstMatch) firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+
+        // ── UI TOGGLES ─────────────────────────────
+
+        function toggleChatMenu() {
+            document.getElementById('chatDropdown').classList.toggle('open');
+        }
+        function closeChatMenu() {
+            document.getElementById('chatDropdown').classList.remove('open');
+        }
+
+        function toggleSearchBar() {
+            const bar = document.getElementById('chatSearchBar');
+            const visible = bar.style.display !== 'none';
+            bar.style.display = visible ? 'none' : 'flex';
+            if (!visible) {
+                document.getElementById('messageSearchInput').focus();
+            } else {
+                closeSearchBar();
+            }
+        }
+        function closeSearchBar() {
+            document.getElementById('chatSearchBar').style.display = 'none';
+            document.getElementById('messageSearchInput').value = '';
+            document.getElementById('searchResultCount').textContent = '';
+            if (allMessages.length) renderMessages(allMessages);
+        }
+
+        function toggleSidebar() {
+            document.getElementById('chatSidebar').classList.toggle('open');
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

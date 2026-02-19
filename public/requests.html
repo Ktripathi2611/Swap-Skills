@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Requests — Skill Swap</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="page-content">
+        <div class="container" style="padding-top:2rem;padding-bottom:3rem;">
+            <div class="page-header">
+                <h1>Swap Requests</h1>
+                <p>Manage your incoming and outgoing skill swap requests</p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="filterRequests('all', this)">All</button>
+                <button class="tab" onclick="filterRequests('received', this)">Received</button>
+                <button class="tab" onclick="filterRequests('sent', this)">Sent</button>
+                <button class="tab" onclick="filterRequests('pending', this)">Pending</button>
+                <button class="tab" onclick="filterRequests('accepted', this)">Accepted</button>
+            </div>
+
+            <div id="requestsList"></div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/navbar.js"></script>
+    <script>
+        let currentUser = null;
+        let allRequests = [];
+
+        async function init() {
+            currentUser = await checkAuth();
+            if (!currentUser) return;
+            loadRequests();
+        }
+
+        async function loadRequests() {
+            try {
+                allRequests = await api.get('/requests');
+                renderRequests(allRequests);
+            } catch (err) { showToast('Failed to load requests', 'error'); }
+        }
+
+        function renderRequests(requests) {
+            const list = document.getElementById('requestsList');
+            if (requests.length === 0) {
+                list.innerHTML = '<div class="empty-state glass-card-static"><div class="empty-icon">📭</div><h3>No requests</h3><p>Browse skills and send your first swap request!</p><a href="/skills.html" class="btn btn-primary btn-sm">Browse Skills</a></div>';
+                return;
+            }
+            list.innerHTML = requests.map(r => {
+                const isSender = r.sender_id === currentUser.id;
+                const otherName = isSender ? r.receiver_name : r.sender_name;
+                const statusClass = r.status === 'accepted' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning';
+                return `
+                <div class="glass-card request-card mb-1" style="animation:staggerIn 0.4s ease forwards;">
+                    <div class="avatar">${getInitials(otherName)}</div>
+                    <div class="request-info">
+                        <h4>${isSender ? 'To' : 'From'}: ${otherName}</h4>
+                        <p>${r.sender_skill_name} ⇄ ${r.receiver_skill_name}</p>
+                        ${r.message ? `<p style="font-style:italic;margin-top:0.3rem;">"${r.message}"</p>` : ''}
+                        <small style="color:var(--text-muted);">${timeAgo(r.created_at)}</small>
+                    </div>
+                    <div class="d-flex align-center gap-1">
+                        <span class="badge badge-${statusClass}">${r.status}</span>
+                        ${!isSender && r.status === 'pending' ? `
+                            <button class="btn btn-sm btn-success" onclick="acceptRequest(${r.id})">Accept</button>
+                            <button class="btn btn-sm btn-danger" onclick="rejectRequest(${r.id})">Reject</button>
+                        ` : ''}
+                        ${r.status === 'accepted' ? `<a href="/chat.html?requestId=${r.id}" class="btn btn-sm btn-primary">💬 Chat</a>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function filterRequests(filter, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            let filtered = allRequests;
+            if (filter === 'received') filtered = allRequests.filter(r => r.receiver_id === currentUser.id);
+            else if (filter === 'sent') filtered = allRequests.filter(r => r.sender_id === currentUser.id);
+            else if (filter === 'pending') filtered = allRequests.filter(r => r.status === 'pending');
+            else if (filter === 'accepted') filtered = allRequests.filter(r => r.status === 'accepted');
+            renderRequests(filtered);
+        }
+
+        async function acceptRequest(id) {
+            try {
+                await api.put(`/requests/${id}/accept`);
+                showToast('Request accepted!', 'success');
+                loadRequests();
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function rejectRequest(id) {
+            if (!confirm('Reject this request?')) return;
+            try {
+                await api.put(`/requests/${id}/reject`);
+                showToast('Request rejected', 'info');
+                loadRequests();
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
