@@ -1,491 +1,577 @@
+<![CDATA[<div align="center">
+
 # 🔄 Skill Swap — Peer-to-Peer Learning Platform
 
-> Connect, learn, and grow together. Exchange skills with passionate learners worldwide.
+**Connect, learn, and grow together. Exchange your skills with passionate learners worldwide.**
 
-Skill Swap is a full-stack web application where users can trade skills with each other (e.g., teach Python and learn Spanish), book paid learning sessions with mentors, chat in real time, and review their experience.
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.7-010101?logo=socketdotio&logoColor=white)](https://socket.io/)
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
----
-
-## 📋 Table of Contents
-
-1. [Features](#-features)
-2. [Tech Stack](#-tech-stack)
-3. [Folder Structure](#-folder-structure)
-4. [Directory Reference](#-directory-reference)
-   - [Root Files](#root-files)
-   - [config/](#config)
-   - [db/](#db)
-   - [middleware/](#middleware)
-   - [routes/](#routes)
-   - [socket/](#socket)
-   - [public/](#public)
-   - [public/js/](#publicjs)
-   - [public/css/](#publiccss)
-   - [tests/](#tests)
-5. [Installation & Setup (Beginners)](#-installation--setup-beginners)
-6. [Environment Variables](#-environment-variables)
-7. [Running the Project](#-running-the-project)
-8. [API Overview](#-api-overview)
-9. [Feature Flags](#-feature-flags)
-10. [Contributing & Best Practices](#-contributing--best-practices)
+</div>
 
 ---
 
-## ✨ Features
+## 📑 Table of Contents
 
-| Feature | Description |
-|---------|-------------|
-| 🔄 Skill Swap | Send and accept skill-exchange requests with other users |
-| 💬 Real-time Chat | WebSocket-powered messaging for every swap or paid session |
-| 💰 Paid Sessions | Book and pay for one-on-one mentoring sessions |
-| ⭐ Reviews & Ratings | Leave reviews after completed sessions, feature testimonials |
-| 📊 Reputation Score | Dynamic mentor reputation algorithm based on ratings, sessions, and response rate |
-| 📅 Session Scheduling | Schedule sessions with meeting links and notes |
-| 🎯 Recommendations | Smart skill-matching and top-instructor recommendations |
-| 🌙 Dark/Light Mode | Theme toggle — persists across pages |
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+  - [Folder Tree](#folder-tree)
+  - [Root Files](#root-files)
+  - [config/](#config--feature-flag-system)
+  - [db/](#db--database-layer)
+  - [middleware/](#middleware--request-guards)
+  - [routes/](#routes--api-endpoints)
+  - [socket/](#socket--real-time-communication)
+  - [public/](#public--frontend-application)
+  - [tests/](#tests--automated-testing)
+- [Directory Dependency Map](#-directory-dependency-map)
+- [Database Schema](#-database-schema)
+- [API Reference](#-api-reference)
+- [Feature Flags](#-feature-flags)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Variables](#environment-variables)
+  - [Running the Server](#running-the-server)
+  - [Running Tests](#running-tests)
+- [Workflow & Usage Tips](#-workflow--usage-tips)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## 🌟 Overview
+
+**Skill Swap** is a full-stack web application that enables users to exchange skills through a peer-to-peer marketplace. Users can list skills they want to **teach** or **learn**, send swap requests, chat in real time, schedule sessions, and — optionally — pay for premium learning sessions. A built-in review and reputation system helps learners find the best mentors.
+
+The platform is designed as a **modular, feature-flagged** application: optional modules like paid learning, video meetings, and the review system can be toggled on/off without touching the core swap functionality.
+
+---
+
+## ✨ Key Features
+
+| Category | Features |
+|---|---|
+| **Core** | User registration & login, skill listing (teach/learn), swap request lifecycle, real-time chat (Socket.IO), session scheduling, smart recommendations |
+| **Paid Learning** *(optional)* | Instructors can set per-session prices, demo payment flow, earnings dashboard |
+| **Reviews & Reputation** *(optional)* | 1-5 star reviews, mentor reputation score (weighted algorithm), featured testimonials, leaderboard |
+| **Video Meetings** *(optional)* | Attach external meeting links (Zoom, Google Meet, etc.) to sessions |
+| **Frontend** | 12-page responsive UI, glassmorphism design, dark/light theme toggle, toast notifications, skeleton loading states |
 
 ---
 
 ## 🛠 Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| **Server** | Node.js + Express.js |
-| **Database** | MySQL 8 (via `mysql2`) |
-| **Real-time** | Socket.IO |
-| **Auth** | Session-based (`express-session` + `bcrypt`) |
-| **Frontend** | Vanilla HTML, CSS, JavaScript (no framework) |
-| **Payments** | Custom payment flow (extensible to Razorpay/Stripe) |
+|---|---|
+| **Runtime** | Node.js 18+ |
+| **Framework** | Express 4.21 |
+| **Database** | MySQL 8.0 (via `mysql2`) |
+| **Real-time** | Socket.IO 4.7 |
+| **Auth** | Express Sessions + bcrypt |
+| **Frontend** | Vanilla HTML / CSS / JavaScript |
+| **Testing** | Node.js built-in test runner (`node:test`) |
 
 ---
 
-## 📁 Folder Structure
+## 🗂 Project Structure
+
+### Folder Tree
 
 ```
-p1/
-├── .env                    # Environment variables (NOT committed to git)
-├── .gitignore              # Files to ignore in version control
-├── package.json            # Project metadata & npm scripts
-├── server.js               # Main Express server entry point
-│
+Swap-Skills/
 ├── config/
-│   └── features.js         # Feature flag toggles
-│
+│   └── features.js              # Feature flag system (toggle optional modules)
 ├── db/
-│   ├── connection.js       # MySQL connection pool + auto-create tables
-│   └── seed.js             # (Optional) seed data for development
-│
+│   ├── connection.js            # MySQL pool, auto-create DB & tables, migrations
+│   └── schema.sql               # Reference SQL schema (human-readable)
 ├── middleware/
-│   └── auth.js             # isAuthenticated middleware
-│
-├── routes/
-│   ├── auth.js             # Register, login, logout, /me
-│   ├── users.js            # User profiles (get, update)
-│   ├── skills.js           # Add, edit, delete skills
-│   ├── requests.js         # Swap request CRUD + accept/reject/delete
-│   ├── messages.js         # Chat messages (get, delete, clear, search)
-│   ├── sessions.js         # Session scheduling + complete/cancel/delete
-│   ├── payments.js         # Payment creation + webhook
-│   ├── recommendations.js  # Skill-match & top instructor recommendations
-│   ├── reviews.js          # Submit, get, delete, moderate reviews
-│   ├── testimonials.js     # Feature/unfeature testimonials
-│   └── reputation.js       # Reputation score breakdown + leaderboard
-│
+│   └── auth.js                  # Session-based authentication guard
+├── public/                      # Static frontend (served by Express)
+│   ├── css/
+│   │   └── styles.css           # Complete design system (light/dark themes)
+│   ├── js/
+│   │   ├── api.js               # Fetch wrapper & auth helpers
+│   │   ├── navbar.js            # Dynamic navbar/footer injection
+│   │   ├── theme.js             # Light/dark theme toggle (localStorage)
+│   │   └── utils.js             # Toast, skeleton, date formatting, debounce
+│   ├── index.html               # Landing / home page
+│   ├── login.html               # Login form
+│   ├── register.html            # Registration form
+│   ├── dashboard.html           # User dashboard (stats, recommendations)
+│   ├── profile.html             # User profile editor
+│   ├── skills.html              # Browse, search & manage skills
+│   ├── requests.html            # View & manage swap requests
+│   ├── chat.html                # Real-time messaging (Socket.IO)
+│   ├── sessions.html            # Schedule & manage learning sessions
+│   ├── payment.html             # Demo payment flow
+│   ├── earnings.html            # Instructor earnings dashboard
+│   └── mentor-profile.html      # Public mentor profile with reviews
+├── routes/                      # Express route modules (REST API)
+│   ├── auth.js                  # Register, login, logout, current user
+│   ├── users.js                 # User profiles (list, get, update)
+│   ├── skills.js                # Skills CRUD + trending + search
+│   ├── requests.js              # Swap request lifecycle (send/accept/reject/delete)
+│   ├── messages.js              # Chat messages (CRUD, search, paid-chat support)
+│   ├── sessions.js              # Learning sessions (swap & paid types)
+│   ├── recommendations.js       # Smart skill & user recommendations
+│   ├── payments.js              # Demo payment create/verify/history/earnings
+│   ├── reviews.js               # Review CRUD + mentor stats recalculation
+│   ├── reputation.js            # Reputation score breakdown & leaderboard
+│   └── testimonials.js          # Featured testimonial management
 ├── socket/
-│   └── chat.js             # Socket.IO event handlers for real-time chat
-│
+│   └── chat.js                  # Socket.IO event handlers (messaging, typing)
 ├── tests/
-│   └── api.test.js         # Node.js built-in test runner
-│
-└── public/                 # All frontend files (served statically)
-    ├── index.html          # Landing page
-    ├── login.html          # Login page
-    ├── register.html       # Registration page
-    ├── dashboard.html      # User dashboard
-    ├── skills.html         # Browse & manage skills
-    ├── requests.html       # Swap request management
-    ├── chat.html           # Real-time chat interface
-    ├── sessions.html       # Session list & scheduling
-    ├── payment.html        # Payment flow
-    ├── earnings.html       # Mentor earnings dashboard
-    ├── profile.html        # User profile editor
-    ├── mentor-profile.html # Public mentor profile with reviews
-    ├── css/
-    │   └── styles.css      # Global stylesheet (design system)
-    └── js/
-        ├── api.js          # Fetch wrapper (`api.get`, `api.post`, etc.)
-        ├── navbar.js       # Dynamic navbar + auth state
-        ├── theme.js        # Dark/light mode toggle
-        └── utils.js        # Shared helpers (toast, initials, formatDate)
+│   └── api.test.js              # 22 integration tests (Node.js test runner)
+├── server.js                    # Application entry point
+├── package.json                 # Project metadata & dependencies
+├── package-lock.json            # Locked dependency versions
+└── .gitignore                   # Git ignore rules
 ```
 
 ---
-
-## 📖 Directory Reference
 
 ### Root Files
 
 | File | Purpose |
-|------|---------|
-| `server.js` | Bootstraps Express, mounts all routes, initializes Socket.IO, serves `public/` statically |
-| `package.json` | Lists dependencies, defines `start`, `dev`, and `test` npm scripts |
-| `.env` | Secret config (DB credentials, session secret, port) — **never commit this** |
-| `.gitignore` | Excludes `node_modules/` and `.env` from git |
+|---|---|
+| `server.js` | **Application entry point.** Configures Express middleware (CORS, JSON, sessions), mounts all API routes under `/api/*`, initializes Socket.IO, serves the `public/` directory as static files, and starts the HTTP server on the configured port. |
+| `package.json` | Project metadata, npm scripts (`start`, `dev`, `test`), and production dependencies. |
+| `package-lock.json` | Deterministic dependency tree for reproducible installs. |
+| `.gitignore` | Excludes `node_modules/`, `.env`, and `*.log` from version control. |
 
 ---
 
-### `config/`
+### `config/` — Feature Flag System
 
-| File | Purpose |
-|------|---------|
-| `features.js` | Central on/off switches for optional platform modules |
-
-**Exports:** `isFeatureEnabled(name)`, `requireFeature(name)` middleware, and the `features` object.
-
-> To disable a feature (e.g., paid learning), set `PAID_LEARNING: false`.
-> All dependent routes will respond with `404` automatically.
-
----
-
-### `db/`
-
-| File | Purpose |
-|------|---------|
-| `connection.js` | Creates a MySQL connection pool; auto-creates all tables and runs safe ALTER migrations on startup |
-| `seed.js` | Inserts demo users and skills for local development |
-
-**Tables created automatically:**
-`users`, `skills`, `swap_requests`, `messages`, `sessions`, `payments`, `reviews`, `testimonials`
-
-> You never need to run SQL manually — just start the server and all tables appear.
-
----
-
-### `middleware/`
-
-| File | Purpose |
-|------|---------|
-| `auth.js` | Exports `isAuthenticated` — rejects unauthenticated API calls with `401` |
-
-**Dependency:** Used by every protected route (`POST /api/reviews`, `DELETE /api/requests/:id`, etc.)
-
----
-
-### `routes/`
-
-Each file maps to an API prefix mounted in `server.js`:
-
-| File | Mount Point | Key Endpoints |
-|------|------------|---------------|
-| `auth.js` | `/api/auth` | `POST /register`, `POST /login`, `POST /logout`, `GET /me` |
-| `users.js` | `/api/users` | `GET /:id` (with rating + score), `PUT /:id` |
-| `skills.js` | `/api/skills` | `GET /`, `POST /`, `PUT /:id`, `DELETE /:id` |
-| `requests.js` | `/api/requests` | `POST /`, `GET /`, `PUT /:id/accept`, `PUT /:id/reject`, `DELETE /:id` |
-| `messages.js` | `/api/messages` | `GET /:requestId`, `GET /paid/:paymentId`, `DELETE /:id/message/:msgId`, `DELETE /:id/clear`, `GET /:id/search` |
-| `sessions.js` | `/api/sessions` | `POST /`, `GET /`, `PUT /:id/complete`, `PUT /:id/cancel`, `DELETE /paid/:paymentId` |
-| `payments.js` | `/api/payments` | `POST /`, `GET /`, `PUT /:id/confirm` |
-| `recommendations.js` | `/api/recommendations` | `GET /` (matched users, trending, top instructors) |
-| `reviews.js` | `/api/reviews` | `POST /`, `GET /mentor/:id`, `GET /session/:id`, `DELETE /:id`, `PUT /:id/moderate` |
-| `testimonials.js` | `/api/testimonials` | `POST /`, `DELETE /:id`, `GET /mentor/:id`, `PUT /:id/priority` |
-| `reputation.js` | `/api/reputation` | `GET /:userId`, `GET /leaderboard` |
-
----
-
-### `socket/`
-
-| File | Purpose |
-|------|---------|
-| `chat.js` | Handles `joinRoom`, `sendMessage`, `typing`, `stopTyping` Socket.IO events |
-
-**Convention:** Swap chat rooms use `chat_<requestId>`. Paid chat rooms use `chat_-<paymentId>` (negative ID to avoid collisions).
-
----
-
-### `public/`
-
-All HTML pages served directly to the browser.
+> **Purpose:** Toggle optional platform modules on/off without code changes.
 
 | File | Description |
-|------|-------------|
-| `index.html` | Landing page — hero, features, CTA |
-| `login.html` | Login form |
-| `register.html` | Registration form |
-| `dashboard.html` | Personal dashboard — stats, recent activity |
-| `skills.html` | Browse all skills, send swap requests, book paid sessions |
-| `requests.html` | View, accept, reject incoming/outgoing swap requests |
-| `chat.html` | Full-feature chat — sidebar, search, message delete, export |
-| `sessions.html` | List all sessions, mark complete, leave reviews |
-| `payment.html` | Payment checkout for a skill |
-| `earnings.html` | Mentor earnings summary (feature-gated: `MENTOR_DASHBOARD`) |
-| `profile.html` | Edit your own profile — name, bio, location, avatar |
-| `mentor-profile.html` | Public mentor page — stars, testimonials, reviews, reputation |
+|---|---|
+| `features.js` | Exports a `features` object with boolean flags (`PAID_LEARNING`, `VIDEO_MEETINGS`, `MENTOR_DASHBOARD`, `REVIEWS_RATINGS`, `ADVANCED_ANALYTICS`). Also exports `isFeatureEnabled()` for runtime checks and `requireFeature()` as Express middleware to gate entire route groups. |
+
+**Dependencies:** Used by `routes/payments.js`, `routes/reviews.js`, `routes/reputation.js`, `routes/testimonials.js`, `routes/messages.js`, `routes/sessions.js`, `routes/recommendations.js`, and `public/js/navbar.js`.
 
 ---
 
-### `public/js/`
+### `db/` — Database Layer
 
-Shared JavaScript utilities loaded by every page:
+> **Purpose:** MySQL connection pool and automatic database/table initialization.
 
-| File | Purpose |
-|------|---------|
-| `api.js` | Thin wrapper over `fetch` — `api.get()`, `api.post()`, `api.put()`, `api.delete()` with error handling |
-| `navbar.js` | Renders navigation and updates auth state (logged in vs. out) |
-| `theme.js` | Reads/writes `localStorage` for dark/light mode; applies class to `<body>` |
-| `utils.js` | `showToast()`, `getInitials()`, `formatDateTime()`, `checkAuth()` |
+| File | Description |
+|---|---|
+| `connection.js` | Creates two MySQL connection pools (one for DB creation, one for application use). The `initializeDatabase()` function auto-creates the database, all 8 tables, and runs safe `ALTER TABLE` migrations on startup. Exports a promise-based pool for all queries. |
+| `schema.sql` | Human-readable reference SQL schema with `CREATE TABLE` statements and performance indexes. Useful for manual DB setup or documentation — the app auto-creates tables via `connection.js`. |
 
-**Dependency note:** Every page includes these scripts in this order:
-```html
-<script src="/js/api.js"></script>
-<script src="/js/utils.js"></script>
-<script src="/js/navbar.js"></script>
+**Dependencies:** Imported by every `routes/*.js` module and `socket/chat.js` for database queries.
+
+---
+
+### `middleware/` — Request Guards
+
+> **Purpose:** Reusable Express middleware for route protection.
+
+| File | Description |
+|---|---|
+| `auth.js` | Exports `isAuthenticated` — checks `req.session.userId` and returns `401` if not logged in. Applied to all protected API endpoints. |
+
+**Dependencies:** Used by `routes/users.js`, `routes/skills.js`, `routes/requests.js`, `routes/messages.js`, `routes/sessions.js`, `routes/payments.js`, `routes/reviews.js`, `routes/testimonials.js`.
+
+---
+
+### `routes/` — API Endpoints
+
+> **Purpose:** Modular Express routers implementing the full REST API. Each file handles one domain.
+
+| File | Domain | Key Endpoints | Auth Required | Feature-Gated |
+|---|---|---|---|---|
+| `auth.js` | Authentication | `POST register`, `POST login`, `POST logout`, `GET me` | Partial | No |
+| `users.js` | User Profiles | `GET /` (list/search), `GET /:id`, `PUT /:id` | Partial | No |
+| `skills.js` | Skill Management | `POST /`, `GET /` (filter), `GET /trending`, `PUT /:id`, `DELETE /:id` | Partial | No |
+| `requests.js` | Swap Requests | `POST /`, `GET /`, `PUT /:id/accept`, `PUT /:id/reject`, `DELETE /:id` | Yes | No |
+| `messages.js` | Chat Messages | `GET /:requestId`, `GET /paid/:paymentId`, `DELETE /:id/message/:msgId`, `DELETE /:id/clear`, `GET /:id/search` | Yes | Partial |
+| `sessions.js` | Learning Sessions | `POST /`, `GET /`, `PUT /:id`, `DELETE /:id`, `DELETE /paid/:paymentId` | Yes | Partial |
+| `recommendations.js` | Smart Recommendations | `GET /` | Yes | Partial |
+| `payments.js` | Payment Flow | `POST /create-order`, `POST /verify`, `GET /history`, `GET /earnings` | Yes | **PAID_LEARNING** |
+| `reviews.js` | Review System | `POST /`, `GET /mentor/:id`, `GET /session/:id`, `DELETE /:id`, `PUT /:id/moderate` | Partial | **REVIEWS_RATINGS** |
+| `reputation.js` | Reputation Scores | `GET /:userId`, `GET /leaderboard` | No | **REVIEWS_RATINGS** |
+| `testimonials.js` | Featured Testimonials | `POST /`, `DELETE /:id`, `GET /mentor/:id`, `PUT /:id/priority` | Partial | **REVIEWS_RATINGS** |
+
+**Dependencies:** All route files import `db/connection.js`. Most import `middleware/auth.js`. Feature-gated routes import `config/features.js`.
+
+---
+
+### `socket/` — Real-Time Communication
+
+> **Purpose:** WebSocket event handlers for the live chat system.
+
+| File | Description |
+|---|---|
+| `chat.js` | Handles Socket.IO events: `joinRoom` (enter a chat room per swap request), `sendMessage` (persist to DB + broadcast), `typing` / `stopTyping` indicators, and `disconnect`. Messages are stored in the `messages` table and broadcast to all room participants. |
+
+**Dependencies:** Imports `db/connection.js`. Initialized by `server.js` which passes the `io` instance.
+
+---
+
+### `public/` — Frontend Application
+
+> **Purpose:** Static HTML/CSS/JS frontend served by Express. Implements a responsive, glassmorphism-styled UI with light/dark theme support.
+
+#### `public/css/`
+
+| File | Description |
+|---|---|
+| `styles.css` | Complete design system (~58 KB). Includes CSS custom properties for theming, responsive layouts, glassmorphism card styles, button variants, form inputs, toast notifications, skeleton loaders, navbar, footer, and per-page component styles. |
+
+#### `public/js/`
+
+| File | Description |
+|---|---|
+| `api.js` | `fetch` wrapper (`apiRequest`) with auto-redirect to login on `401`. Exports convenience methods (`api.get`, `api.post`, `api.put`, `api.delete`) and auth helper `getCurrentUser()`. |
+| `navbar.js` | Dynamically injects the navbar and footer into every page on `DOMContentLoaded`. Navbar links respond to feature flags (e.g., hides "Earnings" if `PAID_LEARNING` is off). Handles auth state display and logout. |
+| `theme.js` | IIFE that restores the saved theme from `localStorage` on page load. Exports `toggleTheme()` to switch between `light` and `dark`. |
+| `utils.js` | Shared utilities: `showToast()`, `showSkeleton()`, `validateForm()`, `validateEmail()`, `formatDate/Time()`, `timeAgo()`, `debounce()`. |
+
+#### HTML Pages
+
+| Page | Purpose |
+|---|---|
+| `index.html` | Landing page — hero section, feature highlights, CTA |
+| `login.html` | Login form (email + password) |
+| `register.html` | Registration form (username, email, password, full name) |
+| `dashboard.html` | Authenticated user dashboard — stats, recommendations, activity |
+| `profile.html` | Edit own profile (name, bio, avatar URL, location) |
+| `skills.html` | Browse all skills with search/filter, add/edit own skills |
+| `requests.html` | View incoming/outgoing swap requests, accept/reject |
+| `chat.html` | Real-time messaging with Socket.IO (per swap request) |
+| `sessions.html` | Schedule, view, and manage learning sessions |
+| `payment.html` | Demo payment flow for paid learning sessions |
+| `earnings.html` | Instructor earnings dashboard (total, monthly, recent transactions) |
+| `mentor-profile.html` | Public mentor profile with reviews, reputation, testimonials |
+
+---
+
+### `tests/` — Automated Testing
+
+> **Purpose:** Integration tests that validate the API end-to-end against a running server.
+
+| File | Description |
+|---|---|
+| `api.test.js` | 22 sequential tests using Node.js built-in `node:test` runner. Covers: registration, duplicate prevention, login/logout, session persistence, skill CRUD, profile updates, recommendations, feature flags, paid learning endpoints, and session listing. Uses raw `http` requests with cookie-jar support. |
+
+**Dependencies:** Requires a running server on `localhost:3000` with an active MySQL instance.
+
+---
+
+## 🔗 Directory Dependency Map
+
+```mermaid
+graph TD
+    A[server.js] --> B[config/features.js]
+    A --> C[db/connection.js]
+    A --> D[routes/*]
+    A --> E[socket/chat.js]
+    A --> F[public/ - static files]
+
+    D --> C
+    D --> G[middleware/auth.js]
+    D --> B
+
+    E --> C
+
+    F --> H[public/js/api.js]
+    F --> I[public/js/navbar.js]
+    I --> B
+
+    style A fill:#2d6a4f,color:#fff
+    style B fill:#e76f51,color:#fff
+    style C fill:#264653,color:#fff
+    style D fill:#2a9d8f,color:#fff
+    style E fill:#e9c46a,color:#000
+    style F fill:#f4a261,color:#000
+    style G fill:#264653,color:#fff
 ```
 
----
-
-### `tests/`
-
-| File | Purpose |
-|------|---------|
-| `api.test.js` | Integration tests using Node.js built-in `node:test` runner |
-
-Run with: `npm test`
-
----
-
-## 🚀 Installation & Setup (Beginners)
-
-Follow these steps carefully. No prior experience needed!
-
-### Step 1 — Install Prerequisites
-
-You need three tools installed on your computer:
-
-#### 1a. Install Node.js
-- Go to [https://nodejs.org](https://nodejs.org)
-- Download the **LTS** version (the green button)
-- Run the installer — click Next on everything
-- Verify it installed: open a terminal and type:
-  ```bash
-  node --version
-  # Should print something like: v20.11.0
-  ```
-
-#### 1b. Install MySQL
-- Go to [https://dev.mysql.com/downloads/installer/](https://dev.mysql.com/downloads/installer/)
-- Download **MySQL Installer for Windows**
-- During setup, choose **Developer Default**
-- Set a **root password** — remember it, you'll need it!
-- Verify: open MySQL Workbench or run `mysql -u root -p`
-
-#### 1c. Install Git (optional but recommended)
-- Go to [https://git-scm.com](https://git-scm.com) and install
+| Source | Depends On | Relationship |
+|---|---|---|
+| `server.js` | `config/`, `db/`, `routes/`, `socket/`, `public/` | Entry point — wires everything together |
+| All `routes/*.js` | `db/connection.js` | Query the database |
+| Most `routes/*.js` | `middleware/auth.js` | Protect authenticated endpoints |
+| `routes/payments.js`, `reviews.js`, `reputation.js`, `testimonials.js` | `config/features.js` | Gate routes behind feature flags |
+| `routes/messages.js`, `sessions.js`, `recommendations.js` | `config/features.js` | Conditional logic based on flags |
+| `socket/chat.js` | `db/connection.js` | Persist and fetch messages |
+| `public/js/navbar.js` | `/api/features` endpoint | Conditionally render navigation links |
+| `public/js/api.js` | `/api/auth/me` | Check authentication state |
+| `tests/api.test.js` | Running server + MySQL | End-to-end integration testing |
 
 ---
 
-### Step 2 — Get the Project
+## 🗄 Database Schema
 
-Either clone with Git:
-```bash
-git clone <your-repo-url>
-cd p1
-```
+The application auto-creates the `skillswap` database and all tables on startup. Here are the 8 core tables:
 
-Or download the ZIP and extract it, then open a terminal in the `p1` folder.
-
----
-
-### Step 3 — Install Dependencies
-
-In your terminal inside the `p1` folder, run:
-```bash
-npm install
-```
-
-This downloads all the packages listed in `package.json` into a `node_modules/` folder. It may take a minute.
+| Table | Purpose | Key Relationships |
+|---|---|---|
+| `users` | User accounts (credentials, profile, reputation scores) | — |
+| `skills` | Skills per user (`teach` or `learn`) with optional pricing | → `users` |
+| `swap_requests` | Swap proposals between two users + their skills | → `users`, → `skills` |
+| `messages` | Chat messages tied to a swap request (or paid session) | → `swap_requests`, → `users` |
+| `sessions` | Scheduled learning sessions (swap or paid) | → `users`, → `swap_requests`, → `payments` |
+| `payments` | Payment records for paid learning (demo mode) | → `users`, → `skills` |
+| `reviews` | Session reviews with 1-5 star ratings | → `sessions`, → `users` |
+| `testimonials` | Featured reviews selected by mentors | → `reviews`, → `users` |
 
 ---
 
-### Step 4 — Create the `.env` File
+## 📡 API Reference
 
-The `.env` file holds your secret configuration. Create one by copying the template below:
+All endpoints are prefixed with `/api`. Responses are JSON.
 
-**Create a new file** named `.env` in the `p1` folder (same level as `server.js`) and paste:
+### Authentication
 
-```env
-# Database — change these to match your MySQL setup
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_root_password_here
-DB_NAME=skillswap
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/auth/register` | Create new user account | No |
+| `POST` | `/api/auth/login` | Login with email & password | No |
+| `POST` | `/api/auth/logout` | Destroy session | No |
+| `GET` | `/api/auth/me` | Get current authenticated user | Yes |
 
-# Session secret — change this to any long random string
-SESSION_SECRET=change_this_to_something_long_and_random_123
+### Users
 
-# Server port
-PORT=3000
-```
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/users` | List users (optional `?search=`) | No |
+| `GET` | `/api/users/:id` | Get user profile with skills + review count | No |
+| `PUT` | `/api/users/:id` | Update own profile | Yes |
 
-> ⚠️ Replace `your_mysql_root_password_here` with the password you set when installing MySQL.
+### Skills
 
----
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/skills` | Add a skill (teach or learn) | Yes |
+| `GET` | `/api/skills` | List/search/filter skills (`?search=`, `?category=`, `?type=`, `?user_id=`) | No |
+| `GET` | `/api/skills/trending` | Top 10 skills by request frequency | No |
+| `PUT` | `/api/skills/:id` | Update own skill | Yes |
+| `DELETE` | `/api/skills/:id` | Delete own skill | Yes |
 
-### Step 5 — Start MySQL
+### Swap Requests
 
-Make sure your MySQL server is running:
-- **Windows**: Open "Services" and start **MySQL80** (or equivalent)
-- Or open MySQL Workbench — if it connects, MySQL is running
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/requests` | Send a swap request | Yes |
+| `GET` | `/api/requests` | List own sent & received requests | Yes |
+| `PUT` | `/api/requests/:id/accept` | Accept a request (receiver only) | Yes |
+| `PUT` | `/api/requests/:id/reject` | Reject a request (receiver only) | Yes |
+| `DELETE` | `/api/requests/:id` | Soft-delete a swap conversation | Yes |
 
-You do **not** need to create any database or tables manually — the app creates everything for you on first run.
+### Messages
 
----
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/messages/:requestId` | Chat history for an accepted swap | Yes |
+| `GET` | `/api/messages/paid/:paymentId` | Chat for a paid session | Yes |
+| `DELETE` | `/api/messages/:requestId/message/:messageId` | Delete own message | Yes |
+| `DELETE` | `/api/messages/:requestId/clear` | Clear all messages in a conversation | Yes |
+| `GET` | `/api/messages/:requestId/search?q=` | Search messages in a conversation | Yes |
 
-### Step 6 — Start the Application
+### Sessions
 
-```bash
-npm start
-```
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/sessions` | Create a session (swap or paid) | Yes |
+| `GET` | `/api/sessions` | List own sessions | Yes |
+| `PUT` | `/api/sessions/:id` | Update a session (host only) | Yes |
+| `DELETE` | `/api/sessions/:id` | Cancel a session | Yes |
+| `DELETE` | `/api/sessions/paid/:paymentId` | Remove a paid conversation | Yes |
 
-You should see:
-```
-✅ Database "skillswap" ready
-✅ All tables ready
-✨ Skill Swap server running on http://localhost:3000
-```
+### Recommendations
 
-Open your browser and go to: **http://localhost:3000**
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/recommendations` | Get matched users, similar skills, trending, affordable skills, top instructors | Yes |
 
----
+### Payments *(requires `PAID_LEARNING`)*
 
-### Step 7 — Register Your First Account
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/payments/create-order` | Create a simulated payment order | Yes |
+| `POST` | `/api/payments/verify` | Verify/complete a payment (demo: always succeeds) | Yes |
+| `GET` | `/api/payments/history` | Payment history as a payer | Yes |
+| `GET` | `/api/payments/earnings` | Earnings summary as an instructor | Yes |
 
-1. Click **Register** in the top navigation
-2. Fill in your name, email, username, and password
-3. Click Register — you'll be redirected to the dashboard
-4. Go to **Skills** and add some skills you can teach and want to learn
+### Reviews *(requires `REVIEWS_RATINGS`)*
 
----
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/reviews` | Submit a review for a completed session | Yes |
+| `GET` | `/api/reviews/mentor/:id` | Get paginated reviews for a mentor | No |
+| `GET` | `/api/reviews/session/:id` | Get review for a specific session | Yes |
+| `DELETE` | `/api/reviews/:id` | Delete own review | Yes |
+| `PUT` | `/api/reviews/:id/moderate` | Approve/reject a review (admin) | Yes |
 
-## 🔑 Environment Variables
+### Reputation *(requires `REVIEWS_RATINGS`)*
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DB_HOST` | MySQL server hostname | `localhost` |
-| `DB_PORT` | MySQL port (default 3306) | `3306` |
-| `DB_USER` | MySQL username | `root` |
-| `DB_PASSWORD` | MySQL password | `mypassword` |
-| `DB_NAME` | Database name (auto-created) | `skillswap` |
-| `SESSION_SECRET` | Secret key for session encryption | `any_long_random_string` |
-| `PORT` | Port the web server runs on | `3000` |
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/reputation/:userId` | Reputation score breakdown | No |
+| `GET` | `/api/reputation/leaderboard` | Top mentors by reputation score | No |
 
----
+### Testimonials *(requires `REVIEWS_RATINGS`)*
 
-## ▶️ Running the Project
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/testimonials` | Feature a review as a testimonial | Yes |
+| `DELETE` | `/api/testimonials/:id` | Unfeature a testimonial | Yes |
+| `GET` | `/api/testimonials/mentor/:id` | Get featured testimonials for a mentor | No |
+| `PUT` | `/api/testimonials/:id/priority` | Reorder testimonial display priority | Yes |
 
-| Command | What it does |
-|---------|-------------|
-| `npm start` | Start the server (production mode) |
-| `npm run dev` | Start with auto-restart on file changes (development) |
-| `npm test` | Run the API test suite |
+### Feature Flags
 
----
-
-## 🌐 API Overview
-
-All API routes are prefixed with `/api/`. The server returns JSON for all endpoints.
-
-**Authentication:** Login creates a session cookie. Protected endpoints return `401` if not logged in.
-
-**Example — Register a user:**
-```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","email":"alice@example.com","password":"secret123","full_name":"Alice Smith"}'
-```
-
-**Example — Browse skills:**
-```bash
-curl http://localhost:3000/api/skills
-```
-
-See the [Directory Reference → routes/](#routes) section above for a full list of endpoints.
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/features` | Get current feature flag states | No |
 
 ---
 
 ## 🚩 Feature Flags
 
-Feature flags in `config/features.js` let you turn optional modules on or off without touching route code:
+Feature flags are defined in `config/features.js` and control optional modules:
 
-```javascript
-const features = {
-    PAID_LEARNING: true,      // Payment + paid sessions
-    VIDEO_MEETINGS: true,     // Meeting link on sessions
-    MENTOR_DASHBOARD: true,   // Earnings page for mentors
-    REVIEWS_RATINGS: true,    // Reviews, testimonials, reputation
-    ADVANCED_ANALYTICS: false // (future)
-};
-```
+| Flag | Default | Controls |
+|---|---|---|
+| `PAID_LEARNING` | `true` | Payment routes, pricing on skills, earnings dashboard, paid chat |
+| `VIDEO_MEETINGS` | `true` | Meeting link field on sessions |
+| `MENTOR_DASHBOARD` | `true` | Earnings page visibility in navbar |
+| `REVIEWS_RATINGS` | `true` | Reviews, testimonials, reputation system, mentor scores |
+| `ADVANCED_ANALYTICS` | `false` | Admin analytics (future — not yet implemented) |
 
-When set to `false`, all related API routes return `404` and the frontend hides those UI elements automatically.
+To toggle a feature, edit the boolean value in `config/features.js` and restart the server. The frontend fetches flags from `GET /api/features` to conditionally render UI elements.
 
 ---
 
-## 🤝 Contributing & Best Practices
+## 🚀 Getting Started
 
-### Adding a New Feature
+### Prerequisites
 
-1. **Create the route file** in `routes/yourfeature.js`
-2. **Mount it** in `server.js`:
-   ```javascript
-   app.use('/api/yourfeature', require('./routes/yourfeature'));
-   ```
-3. **Add a feature flag** in `config/features.js` if it's optional
-4. **Add any new tables** in the `tables` array in `db/connection.js`
-5. **Add migrations** in the `migrations` array for any `ALTER TABLE` changes
+| Software | Version | Purpose |
+|---|---|---|
+| [Node.js](https://nodejs.org/) | 18.0+ | JavaScript runtime |
+| [MySQL](https://dev.mysql.com/downloads/) | 8.0+ | Relational database |
+| npm | (bundled with Node.js) | Package manager |
 
-### Code Style
-
-- Use `async/await` for all database calls — no raw callbacks
-- Always wrap route handlers in `try/catch` and return `res.status(500).json({ error: 'Server error' })`
-- Validate inputs at the top of each route before touching the database
-- Use `isAuthenticated` middleware for any endpoint that requires login
-
-### Security Checklist
-
-- [ ] Never expose `DB_PASSWORD` or `SESSION_SECRET` in code — always use `.env`
-- [ ] Always validate that the logged-in user owns the resource before modifying it
-- [ ] Sanitize user-generated text (strip HTML) before storing in the database
-- [ ] Use `bcrypt` for all passwords — never store plain text
-
-### File Naming
-
-| Type | Convention | Example |
-|------|-----------|---------|
-| Route files | `kebab-case.js` | `swap-requests.js` |
-| HTML pages | `kebab-case.html` | `mentor-profile.html` |
-| CSS classes | `kebab-case` | `.mentor-profile-header` |
-| JS functions | `camelCase` | `loadConversations()` |
-
-### Git Workflow
+### Installation
 
 ```bash
-# Always create a feature branch
-git checkout -b feature/your-feature-name
+# 1. Clone the repository
+git clone https://github.com/Ktripathi2611/Swap-Skills.git
+cd Swap-Skills
 
-# After making changes
-git add .
-git commit -m "feat: add testimonial reordering"
-
-# Push and open a Pull Request
-git push origin feature/your-feature-name
+# 2. Install dependencies
+npm install
 ```
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+# Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=skillswap
+
+# Server
+PORT=3000
+SESSION_SECRET=your_unique_session_secret_here
+```
+
+> **Note:** The application will auto-create the `skillswap` database and all tables on first startup — no manual SQL setup required.
+
+### Running the Server
+
+```bash
+# Production mode
+npm start
+
+# Development mode (auto-restarts on file changes)
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Running Tests
+
+> ⚠️ Tests require a running server and MySQL instance.
+
+```bash
+# Start the server in one terminal
+npm run dev
+
+# Run tests in another terminal
+npm test
+```
+
+The test suite executes 22 sequential integration tests covering auth, skills, profiles, recommendations, feature flags, and payments.
+
+---
+
+## 💡 Workflow & Usage Tips
+
+1. **First Run:** The server auto-creates the database, tables, and runs migrations — just configure `.env` and start.
+2. **Feature Toggling:** Edit `config/features.js` booleans and restart. Both backend routes and frontend UI adapt automatically.
+3. **Adding New Routes:** Create a new file in `routes/`, use `require('../db/connection')` for DB access, and mount it in `server.js` via `app.use('/api/yourroute', require('./routes/yourroute'))`.
+4. **Frontend Pages:** Add a new `.html` file in `public/`. Include the shared scripts (`theme.js`, `api.js`, `utils.js`, `navbar.js`) for consistent theming, navigation, and API access.
+5. **Real-Time Chat:** The chat system uses Socket.IO rooms keyed by swap request ID. To extend, add new events in `socket/chat.js`.
+6. **Payments:** The current payment system is a **demo simulation** — no real payment gateway is integrated. Replace the logic in `routes/payments.js` with Razorpay/Stripe for production.
+7. **Theming:** The CSS uses `data-theme` attributes on `<html>`. All color values use CSS custom properties — customize the palette in `public/css/styles.css`.
+
+---
+
+## 🤝 Contributing
+
+### Getting Started
+
+1. **Fork** the repository
+2. **Create a feature branch:** `git checkout -b feature/your-feature-name`
+3. **Make your changes** and test them
+4. **Commit** with a descriptive message: `git commit -m "feat: add your feature"`
+5. **Push** to your fork: `git push origin feature/your-feature-name`
+6. **Open a Pull Request** against the `main` branch
+
+### Code Guidelines
+
+| Area | Guideline |
+|---|---|
+| **Routes** | One domain per file. Use `isAuthenticated` for protected endpoints. Use `requireFeature()` for optional modules. |
+| **Database** | Add new tables/columns via the migration array in `db/connection.js` (never modify existing `CREATE TABLE` statements). |
+| **Frontend** | Keep pages in `public/`. Use the shared `api.js` helpers for API calls. Follow the existing glassmorphism design patterns in `styles.css`. |
+| **Feature Flags** | New optional features should be gated behind a flag in `config/features.js`. |
+| **Testing** | Add new tests to `tests/api.test.js`. Tests run sequentially and share session state. |
+| **Commits** | Use [Conventional Commits](https://www.conventionalcommits.org/) format: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`. |
+
+### Project Conventions
+
+- **All API responses** return JSON with `{ error: "..." }` on failure.
+- **Authentication** is session-based (cookie: `connect.sid`). No JWT.
+- **Soft deletes** are used for swap requests and paid sessions (`status = "deleted"` / `"chat_deleted"`).
+- **Demo mode** payments always succeed — clearly marked with `demo_mode: true` in responses.
 
 ---
 
 ## 📄 License
 
-ISC — see `package.json` for details.
+This project is licensed under the **ISC License**. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-> Built with ❤️ for learners everywhere.
+<div align="center">
+  <sub>Built with ❤️ for learners everywhere</sub>
+</div>
+]]>
