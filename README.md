@@ -1,5 +1,3 @@
-<![CDATA[<div align="center">
-
 # 🔄 Skill Swap — Peer-to-Peer Learning Platform
 
 **Connect, learn, and grow together. Exchange your skills with passionate learners worldwide.**
@@ -9,8 +7,6 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.7-010101?logo=socketdotio&logoColor=white)](https://socket.io/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
-
-</div>
 
 ---
 
@@ -571,7 +567,4 @@ This project is licensed under the **ISC License**. See the [LICENSE](LICENSE) f
 
 ---
 
-<div align="center">
-  <sub>Built with ❤️ for learners everywhere</sub>
-</div>
-]]>
+<p align="center"><sub>Built with ❤️ for learners everywhere</sub></p>
